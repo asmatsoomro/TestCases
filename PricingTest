@@ -1,0 +1,36 @@
+import org.junit.jupiter.api.Test
+import org.mockito.Mockito
+import org.springframework.retry.RetryCallback
+import org.springframework.retry.support.RetryTemplate
+import org.springframework.web.client.RestTemplate
+import reactor.test.StepVerifier
+
+class PricingServiceTest {
+
+    private val restTemplate = Mockito.mock(RestTemplate::class.java)
+    private val retryTemplate = RetryTemplate()
+
+    private val pricingService = PricingService(restTemplate, retryTemplate)
+
+    @Test
+    fun `test getPricingResponse with circuit breaker and retry`() {
+        val skuId = "12345"
+        val expectedPricingResponse = PricingResponse(skuId = skuId, listPrice = 10.99)
+
+        // Mock RestTemplate to throw an exception for the first call and return the response for the second call
+        Mockito.`when`(restTemplate.getForObject(Mockito.anyString(), Mockito.eq(PricingResponse::class.java)))
+            .thenThrow(RuntimeException("Connection error"))
+            .thenReturn(expectedPricingResponse)
+
+        // Call the method and verify the behavior
+        val result = pricingService.getPricingResponse(skuId)
+
+        StepVerifier.create(result)
+            .expectNext(expectedPricingResponse)
+            .expectComplete()
+            .verify()
+
+        // Verify that the circuit breaker was opened and then closed due to retry
+        Mockito.verify(restTemplate, Mockito.times(2)).getForObject(Mockito.anyString(), Mockito.eq(PricingResponse::class.java))
+    }
+}
