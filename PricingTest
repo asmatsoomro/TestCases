@@ -34,3 +34,68 @@ class PricingServiceTest {
         Mockito.verify(restTemplate, Mockito.times(2)).getForObject(Mockito.anyString(), Mockito.eq(PricingResponse::class.java))
     }
 }
+
+//---------------------------
+
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig
+import io.github.resilience4j.retry.RetryConfig
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
+import org.springframework.web.client.RestTemplate
+import reactor.core.publisher.Mono
+import reactor.test.StepVerifier
+import java.time.Duration
+
+class PricingServiceTest {
+
+    private lateinit var restTemplate: RestTemplate
+    private lateinit var pricingService: PricingService
+
+    @BeforeEach
+    fun setup() {
+        restTemplate = mockk()
+        pricingService = PricingService(restTemplate)
+    }
+
+    @Test
+    fun `test getPricingResponse with success`() {
+        val skuId = "12345"
+        val url = "https://example.com/pricing/$skuId"
+        val pricingResponse = PricingResponse(skuId, "store1", "context1", null, null, null, 10.99)
+
+        every { restTemplate.getForObject(url, PricingResponse::class.java) } returns pricingResponse
+
+        val result = pricingService.getPricingResponse(skuId)
+
+        StepVerifier.create(result)
+            .expectNext(pricingResponse)
+            .verifyComplete()
+    }
+
+    @Test
+    fun `test getPricingResponse with retry and circuit breaker`() {
+        val skuId = "12345"
+        val url = "https://example.com/pricing/$skuId"
+        val retryConfig = RetryConfig.custom<PricingService>("pricing-api-retry")
+            .maxAttempts(3)
+            .waitDuration(Duration.ofMillis(100))
+            .build()
+
+        mockkStatic("java.lang.Thread")
+        every { Thread.sleep(100) } returns Unit
+
+        val pricingResponse = PricingResponse(skuId, "store1", "context1", null, null, null, 10.99)
+        every { restTemplate.getForObject(url, PricingResponse::class.java) } throws HttpServerErrorException(HttpStatus.SERVICE_UNAVAILABLE)
+
+        val result = runBlocking { pricingService.getPricingResponse(skuId).block() }
+
+        assert(result == null)
+    }
+}
+
