@@ -99,3 +99,36 @@ class PricingServiceTest {
     }
 }
 
+
+//------------------------
+
+import org.junit.jupiter.api.Test
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito
+import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest
+import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.test.web.reactive.server.WebTestClient
+import reactor.core.publisher.Mono
+
+@WebFluxTest
+class PricingServiceTest {
+
+    @MockBean
+    private lateinit var webClient: WebClient
+
+    @Test
+    fun `test getPricingResponse with circuit breaker open`() {
+        val skuId = "12345"
+
+        val mockResponse = WebClientResponseException.create(HttpStatus.SERVICE_UNAVAILABLE.value(), HttpStatus.SERVICE_UNAVAILABLE.reasonPhrase, null, null, null)
+        Mockito.`when`(webClient.get().uri(any()).retrieve().bodyToMono(PricingResponse::class.java)).thenReturn(Mono.error(mockResponse))
+
+        val webTestClient = WebTestClient.bindToServer().baseUrl("http://localhost").build()
+
+        val result = webTestClient.get().uri("/pricing/$skuId").exchange()
+
+        result.expectStatus().is5xxServerError
+    }
+}
+
+
