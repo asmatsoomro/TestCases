@@ -1,0 +1,47 @@
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
+import org.springframework.stereotype.Service
+import org.springframework.web.reactive.function.client.WebClient
+import reactor.core.publisher.Mono
+
+@Service
+class PricingService(
+    private val webClient: WebClient,
+    private val circuitBreakerRegistry: CircuitBreakerRegistry
+) {
+    private val circuitBreaker = circuitBreakerRegistry.circuitBreaker("pricing-api-service")
+    private val logger: Logger = LoggerFactory.getLogger(PricingService::class.java)
+
+    fun getPricingResponse(skuId: String): Mono<PricingResponse> {
+        val url = "https://example.com/pricing/$skuId"
+
+        return webClient.get()
+            .uri(url)
+            .retrieve()
+            .onStatus(
+                { HttpStatus.NOT_FOUND == it }, // Customize this condition as needed
+                { clientResponse ->
+                    logResponseStatusAndHeaders(clientResponse)
+                    Mono.empty()
+                }
+            )
+            .bodyToMono(PricingResponse::class.java)
+            .doOnNext { pricingResponse ->
+                logResponseStatusAndHeaders(pricingResponse)
+            }
+            .transform(circuitBreaker::wrapMono)
+    }
+
+    private fun logResponseStatusAndHeaders(response: Any) {
+        if (logger.isInfoEnabled) {
+            if (response is org.springframework.web.reactive.function.client.ClientResponse) {
+                logger.info("HTTP Status Code: {}", response.statusCode())
+                logger.info("HTTP Headers: {}", response.headers().asHttpHeaders())
+            } else {
+                logger.info("Response: {}", response)
+            }
+        }
+    }
+}
