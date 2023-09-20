@@ -1,47 +1,49 @@
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
-import org.springframework.http.HttpStatus
-import org.springframework.stereotype.Service
-import org.springframework.web.reactive.function.client.WebClient
+import io.mockk.Called
+import io.mockk.MockKAnnotations
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 import reactor.core.publisher.Mono
+import java.time.Duration
 
-@Service
-class PricingService(
-    private val webClient: WebClient,
-    private val circuitBreakerRegistry: CircuitBreakerRegistry
-) {
-    private val circuitBreaker = circuitBreakerRegistry.circuitBreaker("pricing-api-service")
-    private val logger: Logger = LoggerFactory.getLogger(PricingService::class.java)
+class PromoServiceTest {
 
-    fun getPricingResponse(skuId: String): Mono<PricingResponse> {
-        val url = "https://example.com/pricing/$skuId"
+    private val promoService = PromoService()
 
-        return webClient.get()
-            .uri(url)
-            .retrieve()
-            .onStatus(
-                { HttpStatus.NOT_FOUND == it }, // Customize this condition as needed
-                { clientResponse ->
-                    logResponseStatusAndHeaders(clientResponse)
-                    Mono.empty()
-                }
-            )
-            .bodyToMono(PricingResponse::class.java)
-            .doOnNext { pricingResponse ->
-                logResponseStatusAndHeaders(pricingResponse)
-            }
-            .transform(circuitBreaker::wrapMono)
+    private val cassandraOperations = mockk<CassandraOperations> {
+        every {
+            insert(any(), any())
+        } returns Mono.empty()
     }
 
-    private fun logResponseStatusAndHeaders(response: Any) {
-        if (logger.isInfoEnabled) {
-            if (response is org.springframework.web.reactive.function.client.ClientResponse) {
-                logger.info("HTTP Status Code: {}", response.statusCode())
-                logger.info("HTTP Headers: {}", response.headers().asHttpHeaders())
-            } else {
-                logger.info("Response: {}", response)
-            }
-        }
+    private val kafkaConfig = KafkaConfig() // Create a KafkaConfig object with necessary properties
+
+    private val objectMapper = ObjectMapper() // Create an instance of ObjectMapper
+
+    @BeforeEach
+    fun setUp() {
+        MockKAnnotations.init(this)
+        promoService.cassandraOperations = cassandraOperations
+        promoService.kafkaConfig = kafkaConfig
+        promoService.objectMapper = objectMapper
+    }
+
+    @Test
+    fun `test savePromoToDB success`() {
+        // Given
+        val promo = createSamplePromo() // Create a sample promo object
+
+        // When
+        promoService.savePromoToDB(promo)
+
+        // Then
+        // Verify that cassandraOperations.insert is called twice
+        verify(exactly = 2) { cassandraOperations.insert(any(), any()) }
+    }
+
+    private fun createSamplePromo(): Promo {
+        // Create and return a sample Promo object here
     }
 }
