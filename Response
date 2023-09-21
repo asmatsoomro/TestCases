@@ -1,53 +1,32 @@
-import ch.qos.logback.classic.Level
-import ch.qos.logback.classic.Logger
-import ch.qos.logback.classic.LoggerContext
-import ch.qos.logback.core.read.ListAppender
-import com.fasterxml.jackson.core.JsonProcessingException
-import com.fasterxml.jackson.databind.ObjectMapper
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.slf4j.LoggerFactory
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import org.mockito.Mockito.*
+import org.slf4j.Logger
+import org.springframework.data.cassandra.core.CassandraOperations
+import reactor.core.publisher.Mono
 
-class LogUtilTest {
-
-    private lateinit var logger: Logger
-    private lateinit var listAppender: ListAppender<*>
-
-    @BeforeEach
-    fun setUp() {
-        // Initialize the logger and list appender
-        val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
-        logger = loggerContext.getLogger(LogUtil::class.java) as Logger
-        listAppender = ListAppender<Any>()
-        listAppender.start()
-        logger.addAppender(listAppender)
-    }
-
-    @AfterEach
-    fun tearDown() {
-        // Reset logger and detach the list appender
-        logger.detachAppender(listAppender)
-    }
+class PromoServiceTest {
 
     @Test
-    fun `test LogUtil logStatus`() {
+    fun testSavePromoToDBError() {
         // Arrange
-        val logMessage = "This is a test log message"
+        val cassandraOperations = mock(CassandraOperations::class.java)
+        val logger = mock(Logger::class.java)
+        
+        val promoService = PromoService(cassandraOperations, logger)
+
+        // Mock behavior for cassandraOperations.insert to simulate an error
+        `when`(cassandraOperations.insert(any(), any())).thenReturn(Mono.error(Throwable("Database error")))
+
+        // Create a sample promo object for testing
+        val promo = Promo(/* Initialize with required data */)
 
         // Act
-        LogUtil.logStatus(logMessage)
+        promoService.savePromoToDB(promo)
 
         // Assert
-        // Capture log output
-        val logList = listAppender.list
-        val capturedLogMessage = logList[0].formattedMessage
+        // Verify that the logger has logged the error message
+        verify(logger).error(anyString())
 
-        // Verify log output
-        assertTrue(logList.isNotEmpty())
-        assertEquals(Level.DEBUG, logList[0].level)
-        assertTrue(capturedLogMessage.contains(logMessage))
+        // You can add more assertions or verifications as needed.
     }
 }
