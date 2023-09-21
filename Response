@@ -1,43 +1,60 @@
-import io.micrometer.core.instrument.Counter
-import io.micrometer.core.instrument.MeterRegistry
-import io.mockk.MockKAnnotations
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.core.read.ListAppender
+import com.fasterxml.jackson.databind.ObjectMapper
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
-class DigitalPromoProcessorTest {
+class MyLoggerTest {
 
-    private lateinit var digitalPromoProcessor: DigitalPromoProcessor
-    private lateinit var registry: MeterRegistry
+    private lateinit var logger: Logger
+    private lateinit var listAppender: ListAppender<*>
 
     @BeforeEach
     fun setUp() {
-        registry = mockk(relaxed = true)
-        digitalPromoProcessor = DigitalPromoProcessor(registry) // Inject the mock into your class
-        MockKAnnotations.init(this)
+        // Initialize the logger and list appender
+        val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
+        logger = loggerContext.getLogger(MyLoggerTest::class.java) as Logger
+        listAppender = ListAppender<Any>()
+        listAppender.start()
+        logger.addAppender(listAppender)
+    }
+
+    @AfterEach
+    fun tearDown() {
+        // Reset logger and detach the list appender
+        logger.detachAppender(listAppender)
     }
 
     @Test
-    fun `test setMetricsConfig`() {
-        // When
-        digitalPromoProcessor.setMetricsConfig()
+    fun `test logStatus`() {
+        // Arrange
+        val logMessage = "This is a test log message"
+        val logKafkaMessage = LogKafkaMessage()
+        logKafkaMessage.key = "APPLICATION_NAME_SHURC"
+        logKafkaMessage.message = logMessage
+        logKafkaMessage.applicationName = "APPLICATION_NAME"
 
-        // Then
-        // Verify that Counter instances are created and registered
-        verify(exactly = 1) {
-            Counter.builder("kafka.receive.success.count")
-                .description("Total number of messages processed")
-                .baseUnit(PromoDefConstants.METRICS_COUNTER_BASE_UNIT)
-                .register(registry)
+        // Act
+        try {
+            logger.debug(ObjectMapper().writeValueAsString(logKafkaMessage))
+        } catch (e: JsonProcessingException) {
+            throw RuntimeException(e)
         }
 
-        verify(exactly = 1) {
-            Counter.builder("kafka.receive.error.count")
-                .description("Total number of messages processed")
-                .baseUnit(PromoDefConstants.METRICS_COUNTER_BASE_UNIT)
-                .register(registry)
-        }
+        // Assert
+        // Capture log output
+        val logList = listAppender.list
+        val capturedLogMessage = logList[0].formattedMessage
+
+        // Verify log output
+        assertTrue(logList.isNotEmpty())
+        assertEquals(Level.DEBUG, logList[0].level)
+        assertTrue(capturedLogMessage.contains(logMessage))
     }
 }
