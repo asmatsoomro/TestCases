@@ -1,0 +1,85 @@
+cucumber {
+    // Configuration for Cucumber tasks
+
+    // Example configuration for reports
+    reports {
+        html {
+            enabled = true // Enable HTML reports
+            outputDir = file("$buildDir/reports/cucumber/html") // Output directory for HTML reports
+            pageTitle = "Cucumber HTML Reports" // Title for HTML report page
+        }
+        json {
+            enabled = true // Enable JSON reports
+            outputDir = file("$buildDir/reports/cucumber/json") // Output directory for JSON reports
+            includeProperties = false // Include additional information in JSON report
+        }
+    }
+}
+import io.cucumber.junit.Cucumber;
+import io.cucumber.junit.CucumberOptions;
+import org.junit.runner.RunWith;
+
+@RunWith(Cucumber.class)
+@CucumberOptions(
+    features = "src/test/resources/features", // Specify the path to your feature files
+    glue = "com.example.steps", // Specify the package where your step definitions are located
+    plugin = {"pretty", "html:build/cucumber-reports"} // Specify the report plugin
+)
+public class CucumberRunner {
+    // Optional: You can add annotations or configurations here if needed
+}
+plugins {
+    id("java")
+    id("io.cucumber")
+}
+
+dependencies {
+    implementation("io.cucumber:cucumber-java") // Add Cucumber Java dependency
+    implementation("io.cucumber:cucumber-junit") // Add Cucumber JUnit dependency
+    implementation("io.cucumber:cucumber-jvm") // Add Cucumber JVM dependency
+
+    // Add other dependencies if needed
+}
+
+cucumber {
+    // Configuration for Cucumber tasks can be added here
+    // For example:
+    // report {
+    //     // Configuration for reports
+    // }
+}
+
+
+import io.cucumber.java8.En
+
+class SkuVariantControllerStepDefinitions : En {
+    private lateinit var skuVariantId: String // Define necessary variables
+
+    init {
+        Given("a valid SkuVariant ID") {
+            skuVariantId = "valid_id" // Initialize with a valid SkuVariant ID
+        }
+
+        When("the GET request is made to '/sku-variant/{id}'") {
+            // Perform a GET request to '/sku-variant/{id}' endpoint using test framework (e.g., RestAssured, MockMvc)
+            // Assert the response status code
+            // Save the response body or details to be used in the next step
+        }
+
+        Then("the response status code should be {int}") { statusCode: Int ->
+            // Assert that the response status code matches the expected code (200)
+        }
+
+        Then("the response body should contain the SkuVariant details") {
+            // Assert that the response body contains the expected SkuVariant details
+        }
+    }
+}
+
+Feature: SkuVariantController Feature Test
+
+  Scenario: Fetching SkuVariant by ID
+    Given a valid SkuVariant ID
+    When the GET request is made to '/sku-variant/{id}'
+    Then the response status code should be 200
+    And the response body should contain the SkuVariant details
